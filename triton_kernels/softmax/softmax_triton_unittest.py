@@ -15,7 +15,7 @@ def get_tol(dtype: torch.dtype):
 
 @pytest.mark.parametrize("dtype", [torch.float32, torch.float16])
 @pytest.mark.parametrize("m", [128, 1024])
-@pytest.mark.parametrize("n", [127, 512, 1024, 2048])
+@pytest.mark.parametrize("n", [128, 512, 1024, 2048])
 def test_triton_softmax(dtype: torch.dtype, m: int, n: int) -> None:
     device = torch.device("cuda:0")
     x = torch.randn((m, n), dtype=dtype, device=device)

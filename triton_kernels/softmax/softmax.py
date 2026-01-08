@@ -33,21 +33,21 @@ def softmax_triton_kernel(
     row_max = -float('inf')
     for block_offset in range(0, row_stride, BLOCK_SIZE):
         col_indices = block_offset + tl.arange(0, BLOCK_SIZE)
-        input_value = tl.load(input_ptr+col_indices, mask=col_indices<row_stride, other=-float('inf'))
+        input_value = tl.load(input_ptr+col_indices, mask=col_indices<row_stride, other=-float('inf')).to(tl.float32)
         row_max = tl.maximum(row_max, tl.max(input_value))
 
     # Pass 2: compute exp-sum
-    row_exp_sum = 0
+    row_exp_sum = 0.0
     for block_offset in range(0, row_stride, BLOCK_SIZE):
         col_indices = block_offset + tl.arange(0, BLOCK_SIZE)
-        input_value = tl.load(input_ptr+col_indices, mask=col_indices<row_stride, other=-float('inf'))
+        input_value = tl.load(input_ptr+col_indices, mask=col_indices<row_stride, other=-float('inf')).to(tl.float32)
         input_value -= row_max
         row_exp_sum += tl.sum(tl.exp(input_value))
     
     # Pass 3: normalize + write
     for block_offset in range(0, row_stride, BLOCK_SIZE):
         col_indices = block_offset + tl.arange(0, BLOCK_SIZE)
-        input_value = tl.load(input_ptr+col_indices, mask=col_indices<row_stride, other=-float('inf'))
+        input_value = tl.load(input_ptr+col_indices, mask=col_indices<row_stride, other=-float('inf')).to(tl.float32)
         input_value -= row_max
         output_value = tl.exp(input_value) / row_exp_sum
         tl.store(output_ptr+col_indices, output_value, mask=col_indices<row_stride)  
@@ -84,14 +84,14 @@ def online_softmax_triton_kernel(
 
     # block 0 
     col_indices = tl.arange(0, BLOCK_SIZE)
-    input_value = tl.load(input_ptr+col_indices, mask=col_indices<row_stride, other=-float('inf'))
+    input_value = tl.load(input_ptr+col_indices, mask=col_indices<row_stride, other=-float('inf')).to(tl.float32)
     last_max = tl.max(input_value)
     d = tl.sum(tl.exp(input_value-last_max))
     
     # Pass 1: compute row max and exp-sum 
-    for block_offset in range(1, row_stride, BLOCK_SIZE):
+    for block_offset in range(BLOCK_SIZE, row_stride, BLOCK_SIZE):
         col_indices = block_offset + tl.arange(0, BLOCK_SIZE)
-        input_value = tl.load(input_ptr+col_indices, mask=col_indices<row_stride, other=-float('inf'))
+        input_value = tl.load(input_ptr+col_indices, mask=col_indices<row_stride, other=-float('inf')).to(tl.float32)
         cur_max = tl.maximum(last_max, tl.max(input_value))
         exp_a = tl.exp(last_max-cur_max)
         cur_exp = tl.exp(input_value - cur_max)
@@ -101,7 +101,7 @@ def online_softmax_triton_kernel(
 
     for block_offset in range(0, row_stride, BLOCK_SIZE):
         col_indices = block_offset + tl.arange(0, BLOCK_SIZE)
-        input_value = tl.load(input_ptr+col_indices, mask=col_indices<row_stride, other=-float('inf'))
+        input_value = tl.load(input_ptr+col_indices, mask=col_indices<row_stride, other=-float('inf')).to(tl.float32)
         exp_input = tl.exp(input_value - last_max)
         output_value = exp_input / d
         tl.store(output_ptr+col_indices, output_value, mask=col_indices<row_stride)  
