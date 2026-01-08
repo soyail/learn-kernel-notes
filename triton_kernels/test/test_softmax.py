@@ -3,12 +3,11 @@
 import sys
 import torch
 import click
-import logging
+from loguru import logger
 
-logger = logging.getLogger(__name__)
 
 # Import the existing softmax kernel
-from triton.softmax import softmax, online_softmax
+from triton_kernels.softmax import softmax, online_softmax
 
 # Ensure CUDA is available
 if not torch.cuda.is_available():

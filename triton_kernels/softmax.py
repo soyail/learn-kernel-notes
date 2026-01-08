@@ -57,10 +57,12 @@ def softmax(
 ):
     output = torch.empty_like(input)
     n_rows, n_cols = input.shape
-    softmax_triton_kernel[(n_rows)](
+    BLOCK_SIZE = 256
+    softmax_triton_kernel[(n_rows,)](
         input,
         output,
         n_cols,
+        BLOCK_SIZE
     )
 
 
@@ -108,8 +110,10 @@ def online_softmax(
 ):
     output = torch.empty_like(input)
     n_rows, n_cols = input.shape
-    online_softmax_triton_kernel[(n_rows)](
+    BLOCK_SIZE = 256
+    online_softmax_triton_kernel[(n_rows,)](
         input,
         output,
         n_cols,
+        BLOCK_SIZE
     )
