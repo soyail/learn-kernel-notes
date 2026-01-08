@@ -1,0 +1,4 @@
+torch
+triton
+pytest
+transformer-engine

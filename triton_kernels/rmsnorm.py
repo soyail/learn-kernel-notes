@@ -39,7 +39,7 @@ def rmsnorm_triton(
     input: torch.Tensor, weight: torch.Tensor, eps=1e-6
 ):
     output = torch.empty_like(input)
-    n_rows, feature_dim = input.shape()
+    n_rows, feature_dim = input.shape
     BLOCK_SIZE = 1024
     rmsnorm_triton_kernel[(n_rows)](
         input,
@@ -49,6 +49,7 @@ def rmsnorm_triton(
         eps,
         BLOCK_SIZE,
     )
+    return output
 
 @triton.jit
 def fused_add_rmsnorm_triton_kernel(
@@ -89,7 +90,7 @@ def fused_add_rmsnorm_triton(
     input: torch.Tensor, residual: torch.Tensor, weight: torch.Tensor, eps=1e-6
 ):
     output = torch.empty_like(input)
-    n_rows, feature_dim = input.shape()
+    n_rows, feature_dim = input.shape
     BLOCK_SIZE = 1024
     fused_add_rmsnorm_triton_kernel[(n_rows)](
         input,
@@ -100,3 +101,4 @@ def fused_add_rmsnorm_triton(
         eps,
         BLOCK_SIZE,
     )
+    return output
