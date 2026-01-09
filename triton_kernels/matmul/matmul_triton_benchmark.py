@@ -2,7 +2,7 @@ import os
 import torch
 import triton
 
-from gemm import gemm_triton, matmul_kernel
+from gemm import matmul_v0, matmul_v1
 
 
 @triton.testing.perf_report(
@@ -10,9 +10,9 @@ from gemm import gemm_triton, matmul_kernel
         x_names=["K"],
         x_vals=[2**i for i in range(11, 22)],
         line_arg="provider",
-        line_vals=["triton", "torch"],
-        line_names=["Triton", "Torch"],
-        styles=[("blue", "-"), ("red", "-")],
+        line_vals=["matmul_v0", "matmul_v1", "torch"],
+        line_names=["matmul_v0", "matmul_v1", "Torch"],
+        styles=[("blue", "-"), ("red", "-"), ("green", "-")],
         ylabel="TFLOPS",
         plot_name="gemm-performance",
         args={"M": 8192, "N": 8192, "dtype": torch.float16},
@@ -23,9 +23,13 @@ def benchmark(N, M, K, dtype, provider):
     b = torch.randn((K, N), dtype=dtype, device=torch.device("cuda:0"))
     quantiles = [0.5, 0.2, 0.8]
 
-    if provider == "triton":
+    if provider == "matmul_v0":
         ms, min_ms, max_ms = triton.testing.do_bench(
-            lambda: matmul_kernel(a, b), quantiles=quantiles
+            lambda: matmul_v0(a, b), quantiles=quantiles
+        )
+    elif provider == "matmul_v1":
+        ms, min_ms, max_ms = triton.testing.do_bench(
+            lambda: matmul_v1(a, b), quantiles=quantiles
         )
     else:
         ms, min_ms, max_ms = triton.testing.do_bench(

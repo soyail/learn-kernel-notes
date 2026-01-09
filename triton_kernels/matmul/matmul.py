@@ -4,7 +4,7 @@ import triton
 import triton.language as tl
 
 @triton.jit
-def gemm_triton_kernel(
+def matmul_v0_kernel(
     A_ptr, A_m_stride, A_k_stride,
     B_ptr, B_k_stride, B_n_stride,
     C_ptr, C_m_stride, C_n_stride,
@@ -53,7 +53,7 @@ def gemm_triton_kernel(
     tl.store(pointer=C_block_ptr, value=c_acc.to(tl.float16), boundary_check=(0,1))
 
 
-def gemm_triton(a: torch.Tensor, b: torch.Tensor, block_size: int = 128) -> torch.Tensor:
+def matmul_v0(a: torch.Tensor, b: torch.Tensor, block_size: int = 128) -> torch.Tensor:
     if a.ndim != 2 or b.ndim != 2:
         raise ValueError("gemm_triton expects 2D tensors")
     if a.shape[1] != b.shape[0]:
@@ -64,7 +64,7 @@ def gemm_triton(a: torch.Tensor, b: torch.Tensor, block_size: int = 128) -> torc
     c = torch.empty((m, n), device=a.device, dtype=a.dtype)
 
     grid = (triton.cdiv(m, block_size), triton.cdiv(n, block_size))
-    gemm_triton_kernel[grid](
+    matmul_v0_kernel[grid](
         a,
         a.stride(0),
         a.stride(1),
@@ -83,7 +83,7 @@ def gemm_triton(a: torch.Tensor, b: torch.Tensor, block_size: int = 128) -> torc
     
 
 @triton.jit
-def matmul_kernel(
+def matmul_v1_kernel(
     a_ptr, b_ptr, c_ptr,
     M, N, K,
     stride_am, stride_ak,
@@ -92,7 +92,7 @@ def matmul_kernel(
     BLOCK_SIZE_M: tl.constexpr,
     BLOCK_SIZE_N: tl.constexpr,
     BLOCK_SIZE_K: tl.constexpr,
-    GROUP_SIZE_M: tl.cosntexpr
+    GROUP_SIZE_M: tl.constexpr
 ):
     # program-id swizzle to improve l2 cache reuse
     pid = tl.program_id(0)
@@ -145,7 +145,7 @@ def matmul_kernel(
     c_mask = (offs_cm[:, None] < M) & (offs_cn[None, :] < N)
     tl.store(c_ptrs, accumulator, mask=c_mask)
 
-def matmul(a, b):
+def matmul_v1(a, b):
     # Check constraints.
     assert a.shape[1] == b.shape[0], "Incompatible dimensions"
     assert a.dtype == b.dtype, "Incompatible dtypes"
@@ -155,12 +155,20 @@ def matmul(a, b):
 
     c = torch.empty((M, N), device=a.device, dtype=dtype)
     # 1D launch kernel where each block gets its own program.
-    grid = lambda META: (triton.cdiv(M, META["BLOCK_SIZE_M"]) * triton.cdiv(N, META["BLOCK_SIZE_N"]), )
-    matmul_kernel[grid](
+    BLOCK_SIZE_M = 128
+    BLOCK_SIZE_N = 128
+    BLOCK_SIZE_K = 128
+    GROUP_SIZE_M = 2
+    grid = lambda META: (triton.cdiv(M, BLOCK_SIZE_M) * triton.cdiv(N, BLOCK_SIZE_N), )
+    matmul_v1_kernel[grid](
         a, b, c,  #
         M, N, K,  #
         a.stride(0), a.stride(1),  #
         b.stride(0), b.stride(1),  #
         c.stride(0), c.stride(1),  #
+        BLOCK_SIZE_M,
+        BLOCK_SIZE_N,
+        BLOCK_SIZE_K,
+        GROUP_SIZE_M
     )
     return c
