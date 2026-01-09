@@ -83,3 +83,6 @@ The output is:
 - `y = exp(x - m_k) / d_k`
 
 This matches the standard softmax definition while remaining numerically stable and avoiding a full two-pass reduction.
+
+
+For more informations, you can look https://www.kapilsharma.dev/posts/triton-kernels-softmax/
