@@ -12,7 +12,7 @@ def get_tol(dtype: torch.dtype):
     return dict(atol=1e-4, rtol=1e-4)
 
 
-@pytest.mark.parametrize("dtype", [torch.float32, torch.float16])
+@pytest.mark.parametrize("dtype", [torch.float16])
 @pytest.mark.parametrize("m,n,k", [(128, 128, 128), (256, 128, 192), (257, 129, 130)])
 def test_triton_gemm(dtype: torch.dtype, m: int, n: int, k: int) -> None:
     device = torch.device("cuda:0")

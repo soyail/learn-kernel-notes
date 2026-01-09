@@ -1,3 +1,4 @@
+import os
 import torch
 import triton
 
@@ -38,4 +39,6 @@ def benchmark(N, M, K, dtype, provider):
     return tflops(ms), tflops(max_ms), tflops(min_ms)
 
 
-benchmark.run(show_plots=True, print_data=True)
+OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "benchmarks")
+os.makedirs(OUTPUT_DIR, exist_ok=True)
+benchmark.run(show_plots=True, print_data=True, save_path=OUTPUT_DIR)

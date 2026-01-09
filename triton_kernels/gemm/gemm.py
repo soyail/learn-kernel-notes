@@ -14,11 +14,18 @@ def gemm_triton_kernel(
     pid_m = tl.program_id(0)
     pid_n = tl.program_id(1)
 
+    tl.multiple_of(A_ptr, 16)
+    tl.multiple_of(B_ptr, 16)
+    tl.multiple_of(C_ptr, 16)
+    tl.assume(A_k_stride == 1)
+    tl.assume(B_n_stride == 1)
+    tl.assume(C_n_stride == 1)
+
     A_block_ptr = tl.make_block_ptr(
         base=A_ptr,
         shape=(M, K),
         strides=(A_m_stride, A_k_stride),
-        offset=(pid_m * BLOCK_SIZE, 0),
+        offsets=(pid_m * BLOCK_SIZE, 0),
         block_shape=(BLOCK_SIZE, BLOCK_SIZE),
         order=(1, 0),
     )
@@ -27,7 +34,7 @@ def gemm_triton_kernel(
         base=B_ptr,
         shape=(K, N),
         strides=(B_k_stride, B_n_stride),
-        offset=(0, pid_n * BLOCK_SIZE),
+        offsets=(0, pid_n * BLOCK_SIZE),
         block_shape=(BLOCK_SIZE, BLOCK_SIZE),
         order=(1, 0),
     )
@@ -36,7 +43,7 @@ def gemm_triton_kernel(
         base=C_ptr,
         shape=(M, N),
         strides=(C_m_stride, C_n_stride),
-        offset=(pid_m * BLOCK_SIZE, pid_n * BLOCK_SIZE),
+        offsets=(pid_m * BLOCK_SIZE, pid_n * BLOCK_SIZE),
         block_shape=(BLOCK_SIZE, BLOCK_SIZE),
         order=(1, 0),
     )
@@ -50,7 +57,7 @@ def gemm_triton_kernel(
         A_block_ptr = A_block_ptr.advance((0, BLOCK_SIZE))
         B_block_ptr = B_block_ptr.advance((BLOCK_SIZE, 0))
 
-    tl.store(pointer=C_block_ptr, value=c_acc, boundary_check=(0,1))
+    tl.store(pointer=C_block_ptr, value=c_acc.to(tl.float16), boundary_check=(0,1))
 
 
 def gemm_triton(a: torch.Tensor, b: torch.Tensor, block_size: int = 128) -> torch.Tensor:
@@ -58,6 +65,11 @@ def gemm_triton(a: torch.Tensor, b: torch.Tensor, block_size: int = 128) -> torc
         raise ValueError("gemm_triton expects 2D tensors")
     if a.shape[1] != b.shape[0]:
         raise ValueError("incompatible shapes for matmul")
+
+    if not a.is_contiguous():
+        a = a.contiguous()
+    if not b.is_contiguous():
+        b = b.contiguous()
 
     m, k = a.shape
     _, n = b.shape
@@ -78,6 +90,7 @@ def gemm_triton(a: torch.Tensor, b: torch.Tensor, block_size: int = 128) -> torc
         n,
         k,
         BLOCK_SIZE=block_size,
+        num_stages=4,
     )
     return c
     
