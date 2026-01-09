@@ -2,20 +2,20 @@ import os
 import torch
 import triton
 
-from gemm import gemm_triton
+from gemm import gemm_triton, matmul_kernel
 
 
 @triton.testing.perf_report(
     triton.testing.Benchmark(
         x_names=["K"],
-        x_vals=[128 * i for i in range(2, 32)],
+        x_vals=[2**i for i in range(11, 22)],
         line_arg="provider",
         line_vals=["triton", "torch"],
         line_names=["Triton", "Torch"],
         styles=[("blue", "-"), ("red", "-")],
         ylabel="TFLOPS",
         plot_name="gemm-performance",
-        args={"M": 2048, "N": 2048, "dtype": torch.float16},
+        args={"M": 8192, "N": 8192, "dtype": torch.float16},
     )
 )
 def benchmark(N, M, K, dtype, provider):
@@ -25,7 +25,7 @@ def benchmark(N, M, K, dtype, provider):
 
     if provider == "triton":
         ms, min_ms, max_ms = triton.testing.do_bench(
-            lambda: gemm_triton(a, b), quantiles=quantiles
+            lambda: matmul_kernel(a, b), quantiles=quantiles
         )
     else:
         ms, min_ms, max_ms = triton.testing.do_bench(

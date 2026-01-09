@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from gemm import gemm_triton
+from gemm import gemm_triton, matmul_kernel
 
 
 def get_tol(dtype: torch.dtype):
@@ -20,6 +20,18 @@ def test_triton_gemm(dtype: torch.dtype, m: int, n: int, k: int) -> None:
     b = torch.randn((k, n), dtype=dtype, device=device)
 
     y_triton = gemm_triton(a, b)
+    y_ref = torch.matmul(a, b)
+
+    torch.testing.assert_close(y_triton, y_ref, **get_tol(dtype))
+
+@pytest.mark.parametrize("dtype", [torch.float16])
+@pytest.mark.parametrize("m,n,k", [(128, 128, 128), (256, 128, 192), (257, 129, 130)])
+def test_triton_gemm(dtype: torch.dtype, m: int, n: int, k: int) -> None:
+    device = torch.device("cuda:0")
+    a = torch.randn((m, k), dtype=dtype, device=device)
+    b = torch.randn((k, n), dtype=dtype, device=device)
+
+    y_triton = matmul_kernel(a, b)
     y_ref = torch.matmul(a, b)
 
     torch.testing.assert_close(y_triton, y_ref, **get_tol(dtype))
