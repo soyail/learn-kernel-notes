@@ -62,11 +62,12 @@ def matmul_v0_kernel(
         A_block_ptr = A_block_ptr.advance((0, BLOCK_SIZE))
         B_block_ptr = B_block_ptr.advance((BLOCK_SIZE, 0))
 
-    tl.store(pointer=C_block_ptr, value=c_acc.to(tl.float16), boundary_check=(0,1))
+    out_dtype = C_ptr.dtype.element_ty
+    tl.store(pointer=C_block_ptr, value=c_acc.to(out_dtype), boundary_check=(0,1))
 
 
 
-def matmul_v0(a: torch.Tensor, b: torch.Tensor, block_size: int = 128) -> torch.Tensor:
+def matmul_v0(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
     if a.ndim != 2 or b.ndim != 2:
         raise ValueError("gemm_triton expects 2D tensors")
     if a.shape[1] != b.shape[0]:
@@ -76,7 +77,10 @@ def matmul_v0(a: torch.Tensor, b: torch.Tensor, block_size: int = 128) -> torch.
     _, n = b.shape
     c = torch.empty((m, n), device=a.device, dtype=a.dtype)
 
-    grid = (triton.cdiv(m, block_size), triton.cdiv(n, block_size))
+    grid = lambda META: (
+        triton.cdiv(m, META["BLOCK_SIZE"]),
+        triton.cdiv(n, META["BLOCK_SIZE"]),
+    )
     matmul_v0_kernel[grid](
         a,
         a.stride(0),
@@ -90,7 +94,6 @@ def matmul_v0(a: torch.Tensor, b: torch.Tensor, block_size: int = 128) -> torch.
         m,
         n,
         k,
-        BLOCK_SIZE=block_size,
     )
     return c
 
@@ -183,20 +186,12 @@ def matmul_v1(a, b):
 
     c = torch.empty((M, N), device=a.device, dtype=dtype)
     # 1D launch kernel where each block gets its own program.
-    BLOCK_SIZE_M = 128
-    BLOCK_SIZE_N = 128
-    BLOCK_SIZE_K = 128
-    GROUP_SIZE_M = 2
-    grid = lambda META: (triton.cdiv(M, BLOCK_SIZE_M) * triton.cdiv(N, BLOCK_SIZE_N), )
+    grid = lambda META: (triton.cdiv(M, META["BLOCK_SIZE_M"]) * triton.cdiv(N, META["BLOCK_SIZE_N"]), )
     matmul_v1_kernel[grid](
         a, b, c,  #
         M, N, K,  #
         a.stride(0), a.stride(1),  #
         b.stride(0), b.stride(1),  #
         c.stride(0), c.stride(1),  #
-        BLOCK_SIZE_M,
-        BLOCK_SIZE_N,
-        BLOCK_SIZE_K,
-        GROUP_SIZE_M
     )
     return c
