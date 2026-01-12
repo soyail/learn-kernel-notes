@@ -2,13 +2,13 @@ import os
 import torch
 import triton
 
-from gemm import matmul_v0, matmul_v1
+from matmul import matmul_v0, matmul_v1
 
 
 @triton.testing.perf_report(
     triton.testing.Benchmark(
         x_names=["K"],
-        x_vals=[2**i for i in range(11, 22)],
+        x_vals=[2**i for i in range(10, 15)],
         line_arg="provider",
         line_vals=["matmul_v0", "matmul_v1", "torch"],
         line_names=["matmul_v0", "matmul_v1", "Torch"],

@@ -3,6 +3,18 @@ import torch
 import triton
 import triton.language as tl
 
+
+def _matmul_v0_autotune_configs():
+    return [
+        triton.Config({"BLOCK_SIZE": 64}, num_warps=2, num_stages=2),
+        triton.Config({"BLOCK_SIZE": 128}, num_warps=4, num_stages=3),
+        triton.Config({"BLOCK_SIZE": 256}, num_warps=8, num_stages=4),
+    ]
+
+@triton.autotune(
+    configs=_matmul_v0_autotune_configs(),
+    key=["M", "N", "K"],
+)
 @triton.jit
 def matmul_v0_kernel(
     A_ptr, A_m_stride, A_k_stride,
@@ -53,6 +65,7 @@ def matmul_v0_kernel(
     tl.store(pointer=C_block_ptr, value=c_acc.to(tl.float16), boundary_check=(0,1))
 
 
+
 def matmul_v0(a: torch.Tensor, b: torch.Tensor, block_size: int = 128) -> torch.Tensor:
     if a.ndim != 2 or b.ndim != 2:
         raise ValueError("gemm_triton expects 2D tensors")
@@ -80,8 +93,22 @@ def matmul_v0(a: torch.Tensor, b: torch.Tensor, block_size: int = 128) -> torch.
         BLOCK_SIZE=block_size,
     )
     return c
-    
 
+def matmul_get_configs():
+    return [
+        triton.Config({'BLOCK_SIZE_M': BM, 'BLOCK_SIZE_N': BN, "BLOCK_SIZE_K": BK, "GROUP_SIZE_M": 8}, num_stages=s,
+                        num_warps=w)
+        for BM in [128]
+        for BN in [128, 256]
+        for BK in [64, 128]
+        for s in ([2,3,4])
+        for w in [4,8]
+    ]
+
+@triton.autotune(
+    configs=matmul_get_configs(),
+    key=["M", "N", "K"],
+)
 @triton.jit
 def matmul_v1_kernel(
     a_ptr, b_ptr, c_ptr,
@@ -143,7 +170,8 @@ def matmul_v1_kernel(
     # c_ptrs: [BLOCK_SIZE_M, BLOCK_SIZE_N]
     c_ptrs = c_ptr + (offs_cm[:, None] * stride_cm + offs_cn[None, :] * stride_cn)
     c_mask = (offs_cm[:, None] < M) & (offs_cn[None, :] < N)
-    tl.store(c_ptrs, accumulator, mask=c_mask)
+    tl.store(c_ptrs, c, mask=c_mask)
+
 
 def matmul_v1(a, b):
     # Check constraints.

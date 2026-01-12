@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from gemm import matmul_v0, matmul_v1
+from matmul import matmul_v0, matmul_v1
 
 
 def get_tol(dtype: torch.dtype):
@@ -13,7 +13,7 @@ def get_tol(dtype: torch.dtype):
 
 
 @pytest.mark.parametrize("dtype", [torch.float16])
-@pytest.mark.parametrize("m,n,k", [(128, 128, 128), (256, 128, 192), (257, 129, 130)])
+@pytest.mark.parametrize("m,n,k", [(128, 128, 128), (256, 128, 192), (257, 1024, 130)])
 def test_triton_gemm(dtype: torch.dtype, m: int, n: int, k: int) -> None:
     device = torch.device("cuda:0")
     a = torch.randn((m, k), dtype=dtype, device=device)
@@ -25,7 +25,7 @@ def test_triton_gemm(dtype: torch.dtype, m: int, n: int, k: int) -> None:
     torch.testing.assert_close(y_triton, y_ref, **get_tol(dtype))
 
 @pytest.mark.parametrize("dtype", [torch.float16])
-@pytest.mark.parametrize("m,n,k", [(128, 128, 128), (256, 128, 192), (257, 129, 130)])
+@pytest.mark.parametrize("m,n,k", [(128, 128, 128), (256, 128, 192), (257, 1024, 130)])
 def test_triton_matmul(dtype: torch.dtype, m: int, n: int, k: int) -> None:
     device = torch.device("cuda:0")
     a = torch.randn((m, k), dtype=dtype, device=device)
